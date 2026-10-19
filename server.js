@@ -1,27 +1,39 @@
 const express = require('express');
+const cors = require('cors'); // Подключаем CORS
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
-// Проверка токена авторизации (чтобы никто чужой не тратил ваши деньги)
+// РАЗРЕШАЕМ ЗАПРОСЫ С JANITOR AI
+app.use(cors({
+    origin: '*', // Позволяет Janitor AI достучаться до сервера
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
+// Логгер
 app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] Запрос: ${req.method} ${req.url}`);
+    next();
+});
+
+// Проверка токена
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') return next(); // Пропускаем предварительные запросы браузера
     const authHeader = req.headers['authorization'];
     const expectedToken = `Bearer ${process.env.AUTH_TOKEN}`;
-    
     if (process.env.AUTH_TOKEN && authHeader !== expectedToken) {
-        return res.status(401).json({ error: 'Unauthorized: Invalid AUTH_TOKEN' });
+        return res.status(401).json({ error: 'Invalid AUTH_TOKEN' });
     }
     next();
 });
 
-// Перенаправление всех запросов на официальный API Moonshot (Kimi)
+// Прокси на Moonshot
 app.use('/', createProxyMiddleware({
     target: 'https://moonshot.ai',
     changeOrigin: true,
-    pathRewrite: (path) => path, // сохраняет пути /v1/chat/completions
     onProxyReq: (proxyReq) => {
-        // Подмена вашего оригинального API-ключа от Kimi
         proxyReq.setHeader('Authorization', `Bearer ${process.env.MOONSHOT_API_KEY}`);
     }
 }));
