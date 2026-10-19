@@ -4,10 +4,11 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Включаем безопасную обработку JSON-тела
-app.use(express.json({ strict: false }));
+// УВЕЛИЧИВАЕМ ЛИМИТ ПРИЕМА ДАННЫХ ДО 50 МЕГАБАЙТ
+app.use(express.json({ strict: false, limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Полная настройка CORS для Janitor AI
+// Настройка CORS для Janitor AI
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -40,7 +41,6 @@ app.use((req, res, next) => {
 app.post('/v1/chat/completions', async (req, res) => {
     console.log(`[${new Date().toISOString()}] Отправка запроса на Moonshot (Kimi) API...`);
     
-    // Защита на случай, если Janitor AI прислал пустой запрос при проверке связи
     const requestBody = req.body && Object.keys(req.body).length > 0 
         ? req.body 
         : {
@@ -73,7 +73,6 @@ app.post('/v1/chat/completions', async (req, res) => {
     }
 });
 
-// Базовый эндпоинт для проверки доступности сервера в браузере
 app.get('/', (req, res) => {
     res.send('Proxy is live and running!');
 });
