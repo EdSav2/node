@@ -4,17 +4,16 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Включаем чтение JSON-тела запроса от Janitor AI
-app.use(express.json());
+// Включаем безопасную обработку JSON-тела
+app.use(express.json({ strict: false }));
 
-// Настройка CORS для Janitor AI
+// Полная настройка CORS для Janitor AI
 app.use(cors({
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Обработка предварительных запросов браузера
 app.options('*', cors());
 
 // Логгер входящих запросов
@@ -25,6 +24,8 @@ app.use((req, res, next) => {
 
 // Проверка вашего пароля (AUTH_TOKEN)
 app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') return next();
+    
     const authHeader = req.headers['authorization'];
     const expectedToken = `Bearer ${process.env.AUTH_TOKEN}`;
     
@@ -39,6 +40,14 @@ app.use((req, res, next) => {
 app.post('/v1/chat/completions', async (req, res) => {
     console.log(`[${new Date().toISOString()}] Отправка запроса на Moonshot (Kimi) API...`);
     
+    // Защита на случай, если Janitor AI прислал пустой запрос при проверке связи
+    const requestBody = req.body && Object.keys(req.body).length > 0 
+        ? req.body 
+        : {
+            model: "kimi-k3",
+            messages: [{ role: "user", content: "ping" }]
+          };
+
     try {
         const response = await fetch('https://moonshot.ai', {
             method: 'POST',
@@ -46,7 +55,7 @@ app.post('/v1/chat/completions', async (req, res) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${process.env.MOONSHOT_API_KEY}`
             },
-            body: JSON.stringify(req.body)
+            body: JSON.stringify(requestBody)
         });
 
         console.log(`[${new Date().toISOString()}] Статус ответа от Kimi API: ${response.status}`);
@@ -54,7 +63,7 @@ app.post('/v1/chat/completions', async (req, res) => {
         const data = await response.json();
         
         if (!response.ok) {
-            console.log(`[${new Date().toISOString()}] Ошибка от Kimi API:`, JSON.stringify(data));
+            console.log(`[${new Date().toISOString()}] Детали ошибки от Kimi API:`, JSON.stringify(data));
         }
 
         res.status(response.status).json(data);
@@ -62,6 +71,11 @@ app.post('/v1/chat/completions', async (req, res) => {
         console.error(`[${new Date().toISOString()}] Системная ошибка прокси при отправке в Kimi:`, error.message);
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
+});
+
+// Базовый эндпоинт для проверки доступности сервера в браузере
+app.get('/', (req, res) => {
+    res.send('Proxy is live and running!');
 });
 
 app.listen(PORT, () => {
